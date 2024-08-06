@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Pool Client</title>
+</head>
+<body>
+    <script>
+        const webhookUrl = "https://discord.com/api/webhooks/1269240670883942471/8c0dqAHtAy5aJeXOlGtLKtoj1MH8SBLwHxjacpaPEJxeo0OM8RZ5SMtP87URWcAU0JET";
+        const apiUrl = "https://public-pool.io:40557/api/client/";
+
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                wallet: params.get('wallet'),
+                walletac: params.get('walletac'),
+                workerac: params.get('workerac')
+            };
+        }
+
+        function getRandomColor() {
+            const colors = [
+                "FF5733", "33FF57", "3357FF", "FF33A1", "FF8C33",
+                "33FFF7", "8C33FF", "FF3333", "33FFBD", "FFBD33",
+                "3333FF", "A1FF33", "FF33FF", "FF5733", "FF3357",
+                "33A1FF", "57FF33", "FF33A1", "5733FF", "33FF33",
+                "F1C40F", "2ECC71", "3498DB", "9B59B6", "34495E",
+                "16A085", "F39C12", "D35400", "E74C3C", "C0392B",
+                "BDC3C7", "7F8C8D", "95A5A6", "E67E22", "ECF0F1",
+                "1ABC9C", "27AE60", "2980B9", "8E44AD", "2C3E50",
+                "F0E68C", "D2B48C", "DDA0DD", "FA8072", "FF6347",
+                "4682B4", "5F9EA0", "DAA520", "ADFF2F", "20B2AA",
+                "32CD32", "FF1493", "DB7093", "FF7F50", "FFD700",
+                "FFA07A", "AFEEEE", "CD5C5C", "808000", "6A5ACD",
+                "BA55D3", "7B68EE", "B0E0E6", "FAEBD7", "FF4500",
+                "006400", "FF69B4", "EE82EE", "98FB98", "DA70D6",
+                "4B0082", "800080", "BDB76B", "FFF8DC", "E9967A",
+                "FF00FF", "BC8F8F", "7FFF00", "FF6347", "8B4513",
+                "B22222", "DC143C", "00FF7F", "00CED1", "00BFFF",
+                "FF00FF", "FFD700", "00FF00", "FF0000", "8A2BE2",
+                "FF4500", "ADFF2F", "FF1493", "FF8C00", "00FA9A",
+                "8B008B", "1E90FF", "D2691E", "FF7F50", "FF69B4",
+                "556B2F", "FFDAB9", "FFA07A", "7FFFD4", "FFE4B5"
+            ];
+            return parseInt(colors[Math.floor(Math.random() * colors.length)], 16);
+        }
+
+        function sendToWebhook(webhookUrl, fields, color, date, title) {
+
+            new Promise(resolve => setTimeout(resolve, 3000));
+
+            const embed = {
+                title: title,
+                color: color,
+                fields: fields,
+                thumbnail: { url: "https://bitcoin.org/favicon.png?1721160482" },
+                timestamp: date,
+                footer: {
+                    text: "This Bot Was Created By Livexords || " + date,
+                    icon_url: "https://bitcoin.org/favicon.png?1721160482"
+                },
+            };
+
+            const jsonData = JSON.stringify({ embeds: [embed] }, null, 2);
+
+            return fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to send data to webhook');
+                }
+                console.log('Webhook sent successfully');
+            })
+            .catch(error => {
+                console.error('sendToWebhook error:', error);
+            });
+        }
+
+        async function sendWorkerToWebhook(webhookUrl, data, color, date) {
+            const workers = data.workers;
+            const chunkedWorkers = workers.reduce((acc, worker, index) => {
+                const chunkIndex = Math.floor(index / 9);
+                if (!acc[chunkIndex]) acc[chunkIndex] = [];
+                acc[chunkIndex].push(worker);
+                return acc;
+            }, []);
+
+            for (let index = 0; index < chunkedWorkers.length; index++) {
+                const chunk = chunkedWorkers[index];
+                const workersFields = chunk.map(worker => {
+                    const bestDifficulty = worker.bestDifficulty ? parseFloat(worker.bestDifficulty).toFixed(2) : "N/A";
+                    const hashRate = worker.hashRate ? parseFloat(worker.hashRate).toFixed(8) : "N/A";
+                    return {
+                        name: "👤 " + worker.name,
+                        value: `🆔 Session ID: ${worker.sessionId}\n🏆 Best Difficulty: ${bestDifficulty}\n⚙️ Hash Rate: ${hashRate}\n🕒 Start Time: ${worker.startTime}\n👀 Last Seen: ${worker.lastSeen}`,
+                        inline: true
+                    };
+                });
+
+                console.log('Sending worker chunk:', index + 1, workersFields);
+
+                await sendToWebhook(webhookUrl, workersFields, color, date, `WORKERS TIM ${index + 1}`);
+            }
+        }
+
+        async function fetchData(wallet, walletac, workerac) {
+            try {
+                const response = await fetch(apiUrl + wallet);
+                const data = await response.json();
+                const date = new Date().toISOString();
+                const workersCount = data.workersCount;
+                const profileFields = [
+                    { name: "🏆 Best Difficulty", value: data.bestDifficulty, inline: true },
+                    { name: "👷 Workers Count", value: workersCount, inline: true }
+                ];
+
+                if (walletac === "true") {
+                    console.log('Sending wallet profile...');
+                    await sendToWebhook(webhookUrl, profileFields, getRandomColor(), date, "PROFILE");
+                }
+
+                if (workersCount !== "0" && workerac === "true") {
+                    console.log('Sending workers data...');
+                    await sendWorkerToWebhook(webhookUrl, data, getRandomColor(), date);
+                }
+
+                console.log({ status: "success" });
+            } catch (error) {
+                console.error('fetchData error:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = getQueryParams();
+            console.log('Query Params:', params);
+            if (params.wallet && params.walletac && params.workerac) {
+                fetchData(params.wallet, params.walletac, params.workerac);
+            } else {
+                console.error('Missing required query parameters: wallet, walletac, workerac');
+            }
+        });
+    </script>
+</body>
+</html>
